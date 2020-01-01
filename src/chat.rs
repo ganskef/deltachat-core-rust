@@ -1,9 +1,10 @@
 //! # Chat module
 
-use std::convert::TryFrom;
-use std::time::{Duration, SystemTime};
+use std::convert::{TryFrom, TryInto};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_std::path::{Path, PathBuf};
+use async_std::task;
 use itertools::Itertools;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
@@ -466,6 +467,71 @@ impl ChatId {
         }
     }
 
+    /// Get autodelete timer value in seconds.
+    pub async fn get_autodelete_timer(self, context: &Context) -> u32 {
+        context
+            .sql
+            .query_get_value(
+                context,
+                "SELECT autodelete_timer FROM chats WHERE id=?;",
+                paramsv![self],
+            )
+            .await
+            .unwrap_or_default()
+    }
+
+    /// Set autodelete timer value without sending a message.
+    ///
+    /// Used when a message arrives indicating that someone else has
+    /// changed the timer value for a chat.
+    pub(crate) async fn inner_set_autodelete_timer(
+        self,
+        context: &Context,
+        timer: u32,
+    ) -> Result<(), Error> {
+        ensure!(!self.is_special(), "Invalid chat ID");
+
+        context
+            .sql
+            .execute(
+                "UPDATE chats
+             SET autodelete_timer=?
+             WHERE id=?;",
+                paramsv![timer, self],
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Set autodelete timer value in seconds.
+    ///
+    /// If timer value is 0, disable autodelete timer.
+    pub async fn set_autodelete_timer(self, context: &Context, timer: u32) -> Result<(), Error> {
+        if timer == self.get_autodelete_timer(context).await {
+            return Ok(());
+        }
+        self.inner_set_autodelete_timer(context, timer).await?;
+        let mut msg = Message::new(Viewtype::Text);
+        msg.text = Some(
+            context
+                .stock_system_msg(
+                    StockMessage::MsgAutodeleteTimerChanged,
+                    timer.to_string(),
+                    "",
+                    0,
+                )
+                .await,
+        );
+        msg.param.set_cmd(SystemMessage::AutodeleteTimerChanged);
+        if let Err(err) = send_msg(context, self, &mut msg).await {
+            warn!(
+                context,
+                "Failed to send a message about autodelete timer change: {:?}", err
+            );
+        }
+        Ok(())
+    }
+
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough
@@ -710,6 +776,7 @@ impl Chat {
                 .unwrap_or_else(std::path::PathBuf::new),
             draft,
             is_muted: self.is_muted(),
+            autodelete_timer: self.id.get_autodelete_timer(context).await,
         })
     }
 
@@ -938,10 +1005,18 @@ impl Chat {
                     .await?;
             }
 
+            // get autodelete timer
+            let autodelete_timer = self.id.get_autodelete_timer(context).await;
+            let autodelete_timestamp = if autodelete_timer == 0 {
+                0
+            } else {
+                timestamp + i64::from(autodelete_timer)
+            };
+
             // add message to the database
 
             if context.sql.execute(
-                        "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?);",
+                        "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id, autodelete_timer, autodelete_timestamp) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?);",
                         paramsv![
                             new_rfc724_mid,
                             self.id,
@@ -956,6 +1031,8 @@ impl Chat {
                             new_in_reply_to,
                             new_references,
                             location_id as i32,
+                            autodelete_timer,
+                            autodelete_timestamp
                         ]
                     ).await.is_ok() {
                         msg_id = context.sql.get_rowid(
@@ -974,6 +1051,7 @@ impl Chat {
         } else {
             error!(context, "Cannot send message, not configured.",);
         }
+        schedule_autodelete_task(context).await;
 
         Ok(MsgId::new(msg_id))
     }
@@ -1070,6 +1148,9 @@ pub struct ChatInfo {
     ///
     /// The exact time its muted can be found out via the `chat.mute_duration` property
     pub is_muted: bool,
+
+    /// Automatic message deletion timer.
+    pub autodelete_timer: u32,
     // ToDo:
     // - [ ] deaddrop,
     // - [ ] summary,
@@ -1746,14 +1827,93 @@ pub async fn marknoticed_all_chats(context: &Context) -> Result<(), Error> {
     Ok(())
 }
 
-/// Deletes messages which are expired according to "delete_device_after" setting.
+/// Schedule a task to emit MsgsChanged event when the next local
+/// deletion happens. Existing task is cancelled to make sure at most
+/// one such task is scheduled at a time.
+///
+/// This takes into account only per-chat timeouts, because global device
+/// timeouts are at least one hour long and deletion is triggered often enough
+/// by user actions.
+pub async fn schedule_autodelete_task(context: &Context) {
+    // Cancel existing task, if any
+    if let Some(autodelete_task) = context.autodelete_task.write().await.take() {
+        autodelete_task.cancel().await;
+    }
+
+    let autodelete_timestamp: Option<i64> = match context
+        .sql
+        .query_get_value_result(
+            "SELECT autodelete_timestamp \
+         FROM msgs \
+         WHERE autodelete_timestamp != 0 \
+           AND chat_id != ? \
+         ORDER BY autodelete_timestamp ASC \
+         LIMIT 1",
+            paramsv![DC_CHAT_ID_TRASH], // Trash contains already deleted messages, skip them
+        )
+        .await
+    {
+        Err(err) => {
+            warn!(context, "Can't calculate next autodelete timeout: {}", err);
+            return;
+        }
+        Ok(autodelete_timestamp) => autodelete_timestamp,
+    };
+
+    if let Some(autodelete_timestamp) = autodelete_timestamp {
+        let now = SystemTime::now();
+        let until =
+            UNIX_EPOCH + Duration::from_secs(autodelete_timestamp.try_into().unwrap_or(u64::MAX));
+
+        if let Ok(duration) = until.duration_since(now) {
+            // Schedule a task, autodelete_timestamp is in the future
+            let context1 = context.clone();
+            let autodelete_task = task::spawn(async move {
+                async_std::task::sleep(duration).await;
+                emit_event!(
+                    context1,
+                    Event::MsgsChanged {
+                        chat_id: ChatId::new(0),
+                        msg_id: MsgId::new(0)
+                    }
+                );
+            });
+            *context.autodelete_task.write().await = Some(autodelete_task);
+        } else {
+            // Emit event immediately
+            emit_event!(
+                context,
+                Event::MsgsChanged {
+                    chat_id: ChatId::new(0),
+                    msg_id: MsgId::new(0)
+                }
+            );
+        }
+    }
+}
+
+/// Deletes messages which are expired according to `delete_device_after` setting or
+/// `autodelete_timestamp` column.
 ///
 /// Returns true if any message is deleted, so event can be emitted. If nothing
 /// has been deleted, returns false.
-pub async fn delete_device_expired_messages(context: &Context) -> Result<bool, Error> {
-    if let Some(delete_device_after) = context.get_config_delete_device_after().await {
-        let threshold_timestamp = time() - delete_device_after;
+pub(crate) async fn delete_device_expired_messages(context: &Context) -> Result<bool, Error> {
+    let now = time();
 
+    let mut updated = context
+        .sql
+        .execute(
+            "UPDATE msgs \
+             SET txt = 'DELETED', chat_id = ? \
+             WHERE \
+             autodelete_timestamp != 0 \
+             AND autodelete_timestamp < ?",
+            paramsv![DC_CHAT_ID_TRASH, now,],
+        )
+        .await?
+        > 0;
+
+    if let Some(delete_device_after) = context.get_config_delete_device_after().await {
         let self_chat_id = lookup_by_contact_id(context, DC_CONTACT_ID_SELF)
             .await
             .unwrap_or_default()
@@ -1762,6 +1922,8 @@ pub async fn delete_device_expired_messages(context: &Context) -> Result<bool, E
             .await
             .unwrap_or_default()
             .0;
+
+        let threshold_timestamp = now - delete_device_after;
 
         // Delete expired messages
         //
@@ -1786,10 +1948,13 @@ pub async fn delete_device_expired_messages(context: &Context) -> Result<bool, E
             )
             .await?;
 
-        Ok(rows_modified > 0)
-    } else {
-        Ok(false)
+        updated |= rows_modified > 0;
     }
+
+    if updated {
+        schedule_autodelete_task(context).await;
+    }
+    Ok(updated)
 }
 
 pub async fn get_chat_media(
@@ -2844,7 +3009,8 @@ mod tests {
                 "color": 15895624,
                 "profile_image": "",
                 "draft": "",
-                "is_muted": false
+                "is_muted": false,
+                "autodelete_timer": 0
             }
         "#;
 

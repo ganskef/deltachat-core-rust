@@ -1163,6 +1163,16 @@ void            dc_delete_chat               (dc_context_t* context, uint32_t ch
  */
 dc_array_t*     dc_get_chat_contacts         (dc_context_t* context, uint32_t chat_id);
 
+/**
+ * Get the chat's autodelete message timer.
+ *
+ * @memberof dc_context_t
+ * @param context The context as created by dc_context_new().
+ * @param chat_id The chat ID.
+ *
+ * @return autodelete timer value in seconds or 0 if the timer is disabled.
+ */
+uint32_t dc_get_chat_autodelete_timer (dc_context_t* context, uint32_t chat_id);
 
 /**
  * Search messages containing the given query string.
@@ -1295,6 +1305,21 @@ int             dc_remove_contact_from_chat  (dc_context_t* context, uint32_t ch
  */
 int             dc_set_chat_name             (dc_context_t* context, uint32_t chat_id, const char* name);
 
+/**
+ * Set the chat's autodelete message timer.
+ *
+ * This timer is applied to all messages in a chat and starts when the
+ * message is read. The setting is synchronized to all clients
+ * participating in a chat.
+ *
+ * @memberof dc_context_t
+ * @param context The context as created by dc_context_new().
+ * @param chat_id The chat ID to set the autodelete message timer for.
+ * @param timer The timer value in seconds or 0 to disable the timer.
+ *
+ * @return 1=success, 0=error
+ */
+int dc_set_chat_autodelete_timer (dc_context_t* context, uint32_t chat_id, uint32_t timer);
 
 /**
  * Set group profile image.
@@ -4170,6 +4195,11 @@ void dc_event_unref(dc_event_t* event);
  * @param data2 0
  */
 #define DC_EVENT_CHAT_MODIFIED            2020
+
+/**
+ * Chat autodelete timer changed.
+ */
+#define DC_EVENT_CHAT_AUTODELETE_TIMER_MODIFIED 2021
 
 
 /**

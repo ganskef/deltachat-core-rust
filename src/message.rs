@@ -5,7 +5,7 @@ use deltachat_derive::{FromSql, ToSql};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
-use crate::chat::{self, Chat, ChatId};
+use crate::chat::{self, schedule_autodelete_task, Chat, ChatId};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
@@ -132,6 +132,44 @@ impl MsgId {
         Ok(())
     }
 
+    /// Returns autodelete timer value for the message.
+    pub(crate) async fn autodelete_timer(
+        self,
+        context: &Context,
+    ) -> crate::sql::Result<Option<i64>> {
+        let res = match context
+            .sql
+            .query_get_value_result(
+                "SELECT autodelete_timer FROM msgs WHERE id=?",
+                paramsv![self],
+            )
+            .await?
+        {
+            None | Some(0) => None,
+            Some(timer) => Some(timer),
+        };
+        Ok(res)
+    }
+
+    /// Starts autodelete timer for the message if it is not started yet.
+    pub(crate) async fn start_autodelete_timer(self, context: &Context) -> crate::sql::Result<()> {
+        if let Some(autodelete_timer) = self.autodelete_timer(context).await? {
+            let autodelete_timestamp = time() + autodelete_timer;
+
+            context
+                .sql
+                .execute(
+                    "UPDATE msgs SET autodelete_timestamp = ? \
+                WHERE (autodelete_timestamp == 0 OR autodelete_timestamp > ?) \
+                AND id = ?",
+                    paramsv![autodelete_timestamp, autodelete_timestamp, self],
+                )
+                .await?;
+            schedule_autodelete_task(context).await;
+        }
+        Ok(())
+    }
+
     /// Bad evil escape hatch.
     ///
     /// Avoid using this, eventually types should be cleaned up enough
@@ -246,6 +284,8 @@ pub struct Message {
     pub(crate) timestamp_sort: i64,
     pub(crate) timestamp_sent: i64,
     pub(crate) timestamp_rcvd: i64,
+    pub(crate) autodelete_timer: i64,
+    pub(crate) autodelete_timestamp: i64,
     pub(crate) text: Option<String>,
     pub(crate) rfc724_mid: String,
     pub(crate) in_reply_to: Option<String>,
@@ -288,6 +328,8 @@ impl Message {
                     "    m.timestamp AS timestamp,",
                     "    m.timestamp_sent AS timestamp_sent,",
                     "    m.timestamp_rcvd AS timestamp_rcvd,",
+                    "    m.autodelete_timer AS autodelete_timer,",
+                    "    m.autodelete_timestamp AS autodelete_timestamp,",
                     "    m.type AS type,",
                     "    m.state AS state,",
                     "    m.error AS error,",
@@ -316,6 +358,8 @@ impl Message {
                     msg.timestamp_sort = row.get("timestamp")?;
                     msg.timestamp_sent = row.get("timestamp_sent")?;
                     msg.timestamp_rcvd = row.get("timestamp_rcvd")?;
+                    msg.autodelete_timer = row.get("autodelete_timer")?;
+                    msg.autodelete_timestamp = row.get("autodelete_timestamp")?;
                     msg.viewtype = row.get("type")?;
                     msg.state = row.get("state")?;
                     msg.error = row.get("error")?;
@@ -891,6 +935,17 @@ pub async fn get_msg_info(context: &Context, msg_id: MsgId) -> String {
         ret += "\n";
     }
 
+    if msg.autodelete_timer != 0 {
+        ret += &format!("Autodelete timer: {}\n", msg.autodelete_timer);
+    }
+
+    if msg.autodelete_timestamp != 0 {
+        ret += &format!(
+            "Expires: {}\n",
+            dc_timestamp_to_str(msg.autodelete_timestamp)
+        );
+    }
+
     if msg.from_id == DC_CONTACT_ID_INFO || msg.to_id == DC_CONTACT_ID_INFO {
         // device-internal message, no further details needed
         return ret;
@@ -1096,6 +1151,14 @@ pub async fn markseen_msgs(context: &Context, msg_ids: Vec<MsgId>) -> bool {
     let mut send_event = false;
 
     for (id, curr_state, curr_blocked) in msgs.into_iter() {
+        if let Err(err) = id.start_autodelete_timer(context).await {
+            error!(
+                context,
+                "Failed to start autodelete timer for message {}: {}", id, err
+            );
+            continue;
+        }
+
         if curr_blocked == Blocked::Not {
             if curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed {
                 update_msg_state(context, id, MessageState::InSeen).await;

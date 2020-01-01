@@ -526,6 +526,14 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
             Loaded::MDN { .. } => dc_create_outgoing_rfc724_mid(None, &self.from_addr),
         };
 
+        let autodelete_timer = self.msg.chat_id.get_autodelete_timer(self.context).await;
+        if autodelete_timer > 0 {
+            protected_headers.push(Header::new(
+                "Autodelete-Timer".to_string(),
+                autodelete_timer.to_string(),
+            ));
+        }
+
         // we could also store the message-id in the protected headers
         // which would probably help to survive providers like
         // Outlook.com or hotmail which mangle the Message-ID.
@@ -774,6 +782,12 @@ impl<'a, 'b> MimeFactory<'a, 'b> {
                 protected_headers.push(Header::new(
                     "Chat-Content".into(),
                     "location-streaming-enabled".into(),
+                ));
+            }
+            SystemMessage::AutodeleteTimerChanged => {
+                protected_headers.push(Header::new(
+                    "Chat-Content".to_string(),
+                    "autodelete-timer-changed".to_string(),
                 ));
             }
             SystemMessage::AutocryptSetupMessage => {

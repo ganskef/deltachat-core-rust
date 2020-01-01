@@ -619,6 +619,50 @@ async fn add_parts(
             *chat_id = ChatId::new(DC_CHAT_ID_TRASH);
         }
     }
+
+    // Extract autodelete timer from the message.
+    let timer = if let Some(value) = mime_parser.get(HeaderDef::AutodeleteTimer) {
+        match value.parse::<u32>() {
+            Ok(timer) => timer,
+            Err(err) => {
+                warn!(
+                    context,
+                    "can't parse autodelete timer \"{}\": {}", value, err
+                );
+                0
+            }
+        }
+    } else {
+        0
+    };
+
+    // Apply autodelete timer changes to the chat.
+    if (*chat_id).get_autodelete_timer(context).await != timer {
+        match (*chat_id).inner_set_autodelete_timer(context, timer).await {
+            Ok(()) => {
+                let stock_str = context
+                    .stock_system_msg(
+                        StockMessage::MsgAutodeleteTimerChanged,
+                        timer.to_string(),
+                        "",
+                        from_id,
+                    )
+                    .await;
+                chat::add_info_msg(context, *chat_id, stock_str).await;
+                context.emit_event(Event::ChatAutodeleteTimerModified {
+                    chat_id: *chat_id,
+                    timer,
+                });
+            }
+            Err(err) => {
+                warn!(
+                    context,
+                    "failed to modify timer for chat {}: {}", chat_id, err
+                );
+            }
+        }
+    }
+
     // correct message_timestamp, it should not be used before,
     // however, we cannot do this earlier as we need from_id to be set
     let rcvd_timestamp = time();
@@ -682,8 +726,8 @@ async fn add_parts(
                     "INSERT INTO msgs \
          (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
          timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
-         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, error) \
-         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?);",
+         bytes, hidden, mime_headers,  mime_in_reply_to, mime_references, error, autodelete_timer) \
+         VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?, ?,?);",
                 )?;
 
                 let is_location_kml = location_kml_is
@@ -728,6 +772,7 @@ async fn add_parts(
                     mime_in_reply_to,
                     mime_references,
                     part.error,
+                    timer
                 ])?;
 
                 drop(stmt);
