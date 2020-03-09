@@ -45,6 +45,7 @@ pub mod constants;
 pub mod contact;
 pub mod context;
 mod e2ee;
+pub mod export_chat;
 mod imap;
 pub mod imex;
 mod scheduler;
