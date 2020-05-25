@@ -406,19 +406,21 @@ impl<'a> Peerstate<'a> {
         if create {
             sql.execute(
                 "INSERT INTO acpeerstates (addr) VALUES(?);",
-                paramsv![self.addr],
+                paramsx![&self.addr],
             )
             .await?;
         }
 
         if self.to_save == Some(ToSave::All) || create {
             sql.execute(
-                "UPDATE acpeerstates \
-                 SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?, \
-                 public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, \
-                 verified_key=?, verified_key_fingerprint=? \
-                 WHERE addr=?;",
-                paramsv![
+                r#"
+UPDATE acpeerstates 
+  SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?,
+      public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?,
+      verified_key=?, verified_key_fingerprint=?
+  WHERE addr=?;
+"#,
+                paramsx![
                     self.last_seen,
                     self.last_seen_autocrypt,
                     self.prefer_encrypt as i64,
@@ -429,18 +431,17 @@ impl<'a> Peerstate<'a> {
                     self.gossip_key_fingerprint.as_ref().map(|fp| fp.hex()),
                     self.verified_key.as_ref().map(|k| k.to_bytes()),
                     self.verified_key_fingerprint.as_ref().map(|fp| fp.hex()),
-                    self.addr,
+                    &self.addr
                 ],
             ).await?;
         } else if self.to_save == Some(ToSave::Timestamps) {
             sql.execute(
-                "UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? \
-                 WHERE addr=?;",
-                paramsv![
+                "UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? WHERE addr=?;",
+                paramsx![
                     self.last_seen,
                     self.last_seen_autocrypt,
                     self.gossip_timestamp,
-                    self.addr
+                    &self.addr
                 ],
             )
             .await?;

@@ -1142,7 +1142,7 @@ async fn create_or_lookup_group(
                     .sql
                     .execute(
                         "UPDATE chats SET name=? WHERE id=?;",
-                        paramsv![grpname.to_string(), chat_id],
+                        paramsx![grpname, chat_id],
                     )
                     .await
                     .is_ok()
@@ -1178,7 +1178,7 @@ async fn create_or_lookup_group(
                 .sql
                 .execute(
                     "DELETE FROM chats_contacts WHERE chat_id=?;",
-                    paramsv![chat_id],
+                    paramsx![chat_id],
                 )
                 .await
                 .ok();
@@ -1341,7 +1341,7 @@ async fn create_group_record(
 ) -> ChatId {
     if context.sql.execute(
         "INSERT INTO chats (type, name, grpid, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?);",
-        paramsv![
+        paramsx![
             if VerifiedStatus::Unverified != create_verified {
                 Chattype::VerifiedGroup
             } else {
@@ -1350,7 +1350,7 @@ async fn create_group_record(
             grpname.as_ref(),
             grpid.as_ref(),
             create_blocked,
-            time(),
+            time()
         ],
     ).await
     .is_err()

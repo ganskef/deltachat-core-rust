@@ -70,7 +70,18 @@ pub struct Contact {
 
 /// Possible origins of a contact.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive, FromSql, ToSql,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    FromPrimitive,
+    ToPrimitive,
+    FromSql,
+    ToSql,
+    Sqlx,
 )]
 #[repr(i32)]
 pub enum Origin {
@@ -267,8 +278,11 @@ impl Contact {
         if context
             .sql
             .execute(
-                "UPDATE msgs SET state=? WHERE from_id=? AND state=?;",
-                paramsv![MessageState::InNoticed, id as i32, MessageState::InFresh],
+                r#"
+UPDATE msgs SET state=? 
+WHERE from_id=? AND state=?;
+"#,
+                paramsx![MessageState::InNoticed, id as i32, MessageState::InFresh],
             )
             .await
             .is_ok()
@@ -433,8 +447,8 @@ impl Contact {
                     .sql
                     .execute(
                         "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
-                        paramsv![
-                            new_name,
+                        paramsx![
+                            &new_name,
                             if update_addr { addr.to_string() } else { row_addr },
                             if origin > row_origin {
                                 origin
@@ -446,7 +460,7 @@ impl Contact {
                             } else {
                                 row_authname
                             },
-                            row_id
+                            row_id as i32
                         ],
                     )
                     .await
@@ -457,7 +471,7 @@ impl Contact {
                     // This is one of the few duplicated data, however, getting the chat list is easier this way.
                     context.sql.execute(
                     "UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                    paramsv![new_name, Chattype::Single, row_id]
+                    paramsx![&new_name, Chattype::Single, row_id as i32]
                 ).await.ok();
                 }
                 sth_modified = Modifier::Modified;
@@ -471,11 +485,11 @@ impl Contact {
                 .sql
                 .execute(
                     "INSERT INTO contacts (name, addr, origin, authname) VALUES(?, ?, ?, ?);",
-                    paramsv![
-                        name.as_ref().to_string(),
-                        addr,
+                    paramsx![
+                        name.as_ref(),
+                        &addr,
                         origin,
-                        if update_authname { name.as_ref().to_string() } else { "".to_string() }
+                        if update_authname { name.as_ref() } else { "" }
                     ],
                 )
                 .await
@@ -779,7 +793,7 @@ impl Contact {
                 .sql
                 .execute(
                     "DELETE FROM contacts WHERE id=?;",
-                    paramsv![contact_id as i32],
+                    paramsx![contact_id as i32],
                 )
                 .await
             {
@@ -817,7 +831,7 @@ impl Contact {
             .sql
             .execute(
                 "UPDATE contacts SET param=? WHERE id=?",
-                paramsv![self.param.to_string(), self.id as i32],
+                paramsx![self.param.to_string(), self.id as i32],
             )
             .await?;
         Ok(())
@@ -1006,7 +1020,7 @@ impl Contact {
             .sql
             .execute(
                 "UPDATE contacts SET origin=? WHERE id=? AND origin<?;",
-                paramsv![origin, contact_id as i32, origin],
+                paramsx![origin, contact_id as i32, origin],
             )
             .await
             .is_ok()
@@ -1064,7 +1078,7 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
                 .sql
                 .execute(
                     "UPDATE contacts SET blocked=? WHERE id=?;",
-                    paramsv![new_blocking as i32, contact_id as i32],
+                    paramsx![new_blocking as i32, contact_id as i32],
                 )
                 .await
                 .is_ok()
@@ -1074,13 +1088,23 @@ async fn set_block_contact(context: &Context, contact_id: u32, new_blocking: boo
             // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
             // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
             // this would result in recreating the same group...)
-            if context.sql.execute(
-                    "UPDATE chats SET blocked=? WHERE type=? AND id IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                    paramsv![new_blocking, 100, contact_id as i32],
-                ).await.is_ok() {
-                    Contact::mark_noticed(context, contact_id).await;
-                    context.emit_event(Event::ContactsChanged(None));
-                }
+            if context
+                .sql
+                .execute(
+                    r#"
+UPDATE chats 
+  SET blocked=? 
+  WHERE type=? AND id 
+  IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);
+"#,
+                    paramsx![new_blocking, 100i32, contact_id as i32],
+                )
+                .await
+                .is_ok()
+            {
+                Contact::mark_noticed(context, contact_id).await;
+                context.emit_event(Event::ContactsChanged(None));
+            }
         }
     }
 }
