@@ -158,6 +158,21 @@ impl fmt::Display for Job {
     }
 }
 
+impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow<'_>> for Job {
+    fn from_row(row: &sqlx::sqlite::SqliteRow<'_>) -> Result<Self, sqlx::Error> {
+        Ok(Job {
+            job_id: row.get("id")?,
+            action: row.get("action")?,
+            foreign_id: row.get("foreign_id")?,
+            desired_timestamp: row.get("desired_timestamp")?,
+            added_timestamp: row.get("added_timestamp")?,
+            tries: row.get("tries")?,
+            param: row.get::<String, _>("param")?.parse().unwrap_or_default(),
+            pending_error: None,
+        })
+    }
+}
+
 impl Job {
     pub fn new(action: Action, foreign_id: u32, param: Params, delay_seconds: i64) -> Self {
         let timestamp = time();
@@ -689,11 +704,7 @@ async fn set_delivered(context: &Context, msg_id: MsgId) {
     message::update_msg_state(context, msg_id, MessageState::OutDelivered).await;
     let chat_id: ChatId = context
         .sql
-        .query_get_value(
-            context,
-            "SELECT chat_id FROM msgs WHERE id=?",
-            paramsv![msg_id],
-        )
+        .query_value("SELECT chat_id FROM msgs WHERE id=?", paramsx![])
         .await
         .unwrap_or_default();
     context.emit_event(Event::MsgDelivered { chat_id, msg_id });
@@ -828,12 +839,12 @@ async fn load_imap_deletion_msgid(context: &Context) -> sql::Result<Option<MsgId
 
         context
             .sql
-            .query_row_optional(
-                "SELECT id FROM msgs \
-             WHERE timestamp < ? \
-             AND server_uid != 0",
-                paramsv![threshold_timestamp],
-                |row| row.get::<_, MsgId>(0),
+            .query_value_optional(
+                r#"
+SELECT id FROM msgs
+  WHERE timestamp < ? AND server_uid != 0
+"#,
+                paramsx![threshold_timestamp],
             )
             .await
     } else {
@@ -1101,24 +1112,8 @@ LIMIT 1;
         params = paramsv![thread_i];
     };
 
-    let job = loop {
-        let job_res = context
-            .sql
-            .query_row_optional(query, params.clone(), |row| {
-                let job = Job {
-                    job_id: row.get("id")?,
-                    action: row.get("action")?,
-                    foreign_id: row.get("foreign_id")?,
-                    desired_timestamp: row.get("desired_timestamp")?,
-                    added_timestamp: row.get("added_timestamp")?,
-                    tries: row.get("tries")?,
-                    param: row.get::<_, String>("param")?.parse().unwrap_or_default(),
-                    pending_error: None,
-                };
-
-                Ok(job)
-            })
-            .await;
+    let job: Option<Job> = loop {
+        let job_res = context.sql.query_row_optional(query, params()).await;
 
         match job_res {
             Ok(job) => break job,
@@ -1127,11 +1122,8 @@ LIMIT 1;
                 info!(context, "cleaning up job, because of {}", err);
 
                 // TODO: improve by only doing a single query
-                match context
-                    .sql
-                    .query_row(query, params.clone(), |row| row.get::<_, i32>(0))
-                    .await
-                {
+                let id: Result<i32, _> = context.sql.query_value(query, params()).await;
+                match id {
                     Ok(id) => {
                         context
                             .sql

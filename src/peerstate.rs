@@ -144,8 +144,14 @@ impl<'a> Peerstate<'a> {
     }
 
     pub async fn from_addr(context: &'a Context, addr: &str) -> Option<Peerstate<'a>> {
-        let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates  WHERE addr=? COLLATE NOCASE;";
-        Self::from_stmt(context, query, paramsv![addr]).await
+        let query = r#"
+SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, 
+       gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, 
+       verified_key, verified_key_fingerprint 
+  FROM acpeerstates  
+  WHERE addr=? COLLATE NOCASE;
+"#;
+        Self::from_stmt(context, query, paramsx![addr]).await
     }
 
     pub async fn from_fingerprint(
@@ -153,66 +159,76 @@ impl<'a> Peerstate<'a> {
         _sql: &Sql,
         fingerprint: &Fingerprint,
     ) -> Option<Peerstate<'a>> {
-        let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
-                     gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
-                     verified_key, verified_key_fingerprint \
-                     FROM acpeerstates  \
-                     WHERE public_key_fingerprint=? COLLATE NOCASE \
-                     OR gossip_key_fingerprint=? COLLATE NOCASE  \
-                     ORDER BY public_key_fingerprint=? DESC;";
-        let fp = fingerprint.hex();
-        Self::from_stmt(context, query, paramsv![fp, fp, fp]).await
+        let query = r#"
+SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key,
+       gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint,
+       verified_key, verified_key_fingerprint
+  FROM acpeerstates
+  WHERE public_key_fingerprint=? COLLATE NOCASE
+    OR gossip_key_fingerprint=? COLLATE NOCASE
+  ORDER BY public_key_fingerprint=? DESC;
+"#;
+
+        let fingerprint = fingerprint.hex();
+        Self::from_stmt(
+            context,
+            query,
+            paramsx![fingerprint, fingerprint, fingerprint],
+        )
+        .await
     }
 
     async fn from_stmt(
         context: &'a Context,
         query: &str,
-        params: Vec<&dyn crate::ToSql>,
+        params: sqlx::sqlite::SqliteArguments,
     ) -> Option<Peerstate<'a>> {
-        context
-            .sql
-            .query_row(query, params, |row| {
-                /* all the above queries start with this: SELECT
-                addr, last_seen, last_seen_autocrypt, prefer_encrypted,
-                public_key, gossip_timestamp, gossip_key, public_key_fingerprint,
-                gossip_key_fingerprint, verified_key, verified_key_fingerprint
-                */
-                let mut res = Self::new(context, row.get(0)?);
+        if let Ok((
+            addr,
+            last_seen,
+            last_seen_autocrypt,
+            prefer_encrypt,
+            public_key,
+            gossip_timestamp,
+            gossip_key,
+            public_key_fingerprint,
+            gossip_key_fingerprint,
+            verified_key,
+            verified_key_fingerprint,
+        )) = context.sql.query_row(query, params).await
+        {
+            /* all the above queries start with this: SELECT
+            addr, last_seen, last_seen_autocrypt, prefer_encrypted,
+            public_key, gossip_timestamp, gossip_key, public_key_fingerprint,
+            gossip_key_fingerprint, verified_key, verified_key_fingerprint
+            */
+            let mut res = Self::new(context, addr);
 
-                res.last_seen = row.get(1)?;
-                res.last_seen_autocrypt = row.get(2)?;
-                res.prefer_encrypt = EncryptPreference::from_i32(row.get(3)?).unwrap_or_default();
-                res.gossip_timestamp = row.get(5)?;
+            res.last_seen = last_seen;
+            res.last_seen_autocrypt = last_seen_autocrypt;
+            res.prefer_encrypt = prefer_encrypt;
+            res.gossip_timestamp = gossip_timestamp;
 
-                res.public_key_fingerprint = row
-                    .get::<_, Option<String>>(7)?
-                    .map(|s| s.parse::<Fingerprint>())
-                    .transpose()?;
-                res.gossip_key_fingerprint = row
-                    .get::<_, Option<String>>(8)?
-                    .map(|s| s.parse::<Fingerprint>())
-                    .transpose()?;
-                res.verified_key_fingerprint = row
-                    .get::<_, Option<String>>(10)?
-                    .map(|s| s.parse::<Fingerprint>())
-                    .transpose()?;
-                res.public_key = row
-                    .get(4)
-                    .ok()
-                    .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
-                res.gossip_key = row
-                    .get(6)
-                    .ok()
-                    .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
-                res.verified_key = row
-                    .get(9)
-                    .ok()
-                    .and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
+            res.public_key_fingerprint = public_key_fingerprint
+                .map(|s| s.parse::<Fingerprint>())
+                .transpose()?;
+            res.gossip_key_fingerprint = gossip_key_fingerprint
+                .map(|s| s.parse::<Fingerprint>())
+                .transpose()?;
+            res.verified_key_fingerprint = verified_key_fingerprint
+                .map(|s| s.parse::<Fingerprint>())
+                .transpose()?;
+            res.public_key =
+                public_key.and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
+            res.gossip_key =
+                gossip_key.and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
+            res.verified_key =
+                verified_key.and_then(|blob: Vec<u8>| SignedPublicKey::from_slice(&blob).ok());
 
-                Ok(res)
-            })
-            .await
-            .ok()
+            Some(res)
+        } else {
+            None
+        }
     }
 
     pub fn recalc_fingerprint(&mut self) {
