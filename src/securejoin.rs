@@ -971,9 +971,7 @@ async fn could_not_establish_secure_connection(
 }
 
 async fn mark_peer_as_verified(context: &Context, fingerprint: &Fingerprint) -> Result<(), Error> {
-    if let Some(ref mut peerstate) =
-        Peerstate::from_fingerprint(context, &context.sql, fingerprint).await
-    {
+    if let Some(ref mut peerstate) = Peerstate::from_fingerprint(context, fingerprint).await {
         if peerstate.set_verified(
             PeerstateKeyType::PublicKey,
             fingerprint,
@@ -1027,10 +1025,7 @@ fn encrypted_and_signed(
     }
 }
 
-pub async fn handle_degrade_event(
-    context: &Context,
-    peerstate: &Peerstate<'_>,
-) -> Result<(), Error> {
+pub async fn handle_degrade_event(context: &Context, peerstate: &Peerstate) -> Result<(), Error> {
     // - we do not issue an warning for DC_DE_ENCRYPTION_PAUSED as this is quite normal
     // - currently, we do not issue an extra warning for DC_DE_VERIFICATION_LOST - this always comes
     //   together with DC_DE_FINGERPRINT_CHANGED which is logged, the idea is not to bother

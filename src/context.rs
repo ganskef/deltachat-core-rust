@@ -261,7 +261,7 @@ impl Context {
         let is_configured = self.get_config_int(Config::Configured).await;
         let dbversion = self
             .sql
-            .get_raw_config_int(self, "dbversion")
+            .get_raw_config_int("dbversion")
             .await
             .unwrap_or_default();
         let journal_mode = self
@@ -273,13 +273,13 @@ impl Context {
         let mdns_enabled = self.get_config_int(Config::MdnsEnabled).await;
         let bcc_self = self.get_config_int(Config::BccSelf).await;
 
-        let prv_key_cnt = self
+        let prv_key_cnt: Option<i32> = self
             .sql
             .query_value("SELECT COUNT(*) FROM keypairs;", paramsx![])
             .await
             .ok();
 
-        let pub_key_cnt = self
+        let pub_key_cnt: Option<i32> = self
             .sql
             .query_value("SELECT COUNT(*) FROM acpeerstates;", paramsx![])
             .await
@@ -295,7 +295,7 @@ impl Context {
         let mvbox_move = self.get_config_int(Config::MvboxMove).await;
         let folders_configured = self
             .sql
-            .get_raw_config_int(self, "folders_configured")
+            .get_raw_config_int("folders_configured")
             .await
             .unwrap_or_default();
 
