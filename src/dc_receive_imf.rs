@@ -705,7 +705,7 @@ INSERT INTO msgs (
         let msg_id = MsgId::new(
             context
                 .sql
-                .get_rowid(context, "msgs", "rfc724_mid", &rfc724_mid)
+                .get_rowid("msgs", "rfc724_mid", &rfc724_mid)
                 .await?,
         );
 
@@ -1340,7 +1340,7 @@ async fn create_group_record(
     }
     let row_id = context
         .sql
-        .get_rowid(context, "chats", "grpid", grpid.as_ref())
+        .get_rowid("chats", "grpid", grpid.as_ref())
         .await
         .unwrap_or_default();
 
@@ -1629,7 +1629,7 @@ async fn is_known_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
              LEFT JOIN chats c ON m.chat_id=c.id  \
              WHERE m.rfc724_mid=?  \
              AND m.chat_id>9 AND c.blocked=0;",
-            paramsv![rfc724_mid],
+            paramsx![rfc724_mid],
         )
         .await
         .unwrap_or_default()
@@ -1675,7 +1675,7 @@ async fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: &str) -> bool {
         .sql
         .exists(
             "SELECT id FROM msgs  WHERE rfc724_mid=?  AND msgrmsg!=0  AND chat_id>9;",
-            paramsv![rfc724_mid],
+            paramsx![rfc724_mid],
         )
         .await
         .unwrap_or_default()
