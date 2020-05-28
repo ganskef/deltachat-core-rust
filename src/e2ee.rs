@@ -132,7 +132,7 @@ pub async fn try_decrypt(
     let autocryptheader = Aheader::from_headers(context, &from, &mail.headers);
 
     if message_time > 0 {
-        peerstate = Peerstate::from_addr(context, &from).await;
+        peerstate = Peerstate::from_addr(context, &from).await.ok();
 
         if let Some(ref mut peerstate) = peerstate {
             if let Some(ref header) = autocryptheader {

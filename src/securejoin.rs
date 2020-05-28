@@ -361,7 +361,7 @@ async fn fingerprint_equals_sender(
                 if peerstate.public_key_fingerprint.is_some()
                     && fingerprint == peerstate.public_key_fingerprint.as_ref().unwrap()
                 {
-                    return true;
+                    return Ok(true);
                 }
             }
         }
@@ -973,7 +973,7 @@ async fn could_not_establish_secure_connection(
 }
 
 async fn mark_peer_as_verified(context: &Context, fingerprint: &Fingerprint) -> Result<(), Error> {
-    if let Some(ref mut peerstate) = Peerstate::from_fingerprint(context, fingerprint).await {
+    if let Ok(ref mut peerstate) = Peerstate::from_fingerprint(context, fingerprint).await {
         if peerstate.set_verified(
             PeerstateKeyType::PublicKey,
             fingerprint,

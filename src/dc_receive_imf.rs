@@ -1473,8 +1473,10 @@ async fn check_verified_properties(
     if from_id != DC_CONTACT_ID_SELF {
         let peerstate = Peerstate::from_addr(context, contact.get_addr()).await;
 
-        if peerstate.is_none()
-            || contact.is_verified_ex(context, peerstate.as_ref()).await
+        if peerstate.is_err()
+            || contact
+                .is_verified_ex(context, peerstate.as_ref().ok())
+                .await
                 != VerifiedStatus::BidirectVerified
         {
             bail!(
@@ -1483,7 +1485,7 @@ async fn check_verified_properties(
             );
         }
 
-        if let Some(peerstate) = peerstate {
+        if let Ok(peerstate) = peerstate {
             ensure!(
                 peerstate.has_verified_key(&mimeparser.signatures),
                 "The message was sent with non-verified encryption."
@@ -1523,7 +1525,7 @@ async fn check_verified_properties(
 
         // mark gossiped keys (if any) as verified
         if mimeparser.gossipped_addr.contains(&to_addr) {
-            if let Some(mut peerstate) = peerstate {
+            if let Ok(mut peerstate) = peerstate {
                 // if we're here, we know the gossip key is verified:
                 // - use the gossip-key as verified-key if there is no verified-key
                 // - OR if the verified-key does not match public-key or gossip-key
