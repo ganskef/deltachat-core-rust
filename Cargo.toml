@@ -70,7 +70,7 @@ pretty_assertions = "0.6.1"
 pretty_env_logger = "0.3.0"
 proptest = "0.9.4"
 async-std = { version = "1.6.0", features = ["unstable", "attributes"] }
-smol = "0.1.10"
+smol = "0.1.11"
 log = "0.4.8"
 
 [workspace]
@@ -96,6 +96,3 @@ internals = []
 repl = ["internals", "rustyline", "log", "pretty_env_logger", "ansi_term"]
 vendored = ["async-native-tls/vendored", "async-smtp/native-tls-vendored"]
 nightly = ["pgp/nightly"]
-
-[patch.crates-io]
-smol = { git = "https://github.com/dignifiedquire/smol-1", branch = "isolate-nix" }
