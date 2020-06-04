@@ -678,8 +678,8 @@ INSERT INTO msgs (
   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
 "#,
                 paramsx![
-                    rfc724_mid,
-                    server_folder.as_ref(),
+                    rfc724_mid.to_owned(),
+                    server_folder.as_ref().to_owned(),
                     server_uid as i32,
                     chat_id,
                     from_id as i32,
@@ -690,15 +690,15 @@ INSERT INTO msgs (
                     part.typ,
                     state,
                     msgrmsg,
-                    &part.msg,
+                    part.msg.clone(),
                     // txt_raw might contain invalid utf8
                     txt_raw,
                     part.param.to_string(),
                     part.bytes as i64,
                     *hidden,
-                    &mime_headers,
-                    &mime_in_reply_to,
-                    &mime_references,
+                    mime_headers.clone(),
+                    mime_in_reply_to.clone(),
+                    mime_references.clone(),
                 ],
             )
             .await?;
@@ -1245,7 +1245,7 @@ async fn create_or_lookup_adhoc_group(
         let res: Result<(ChatId, Option<Blocked>), _> = context
             .sql
             .query_row(
-                format!(
+                &format!(
                     "SELECT c.id,
                         c.blocked
                    FROM chats c
@@ -1374,7 +1374,7 @@ async fn create_adhoc_grp_id(context: &Context, member_ids: &[u32]) -> Result<St
         "SELECT addr FROM contacts WHERE id IN({}) AND id!=1", // 1=DC_CONTACT_ID_SELF
         member_ids_str
     );
-    let mut addrs: Vec<String> = context.sql.query_values(query, paramsx![]).await?;
+    let mut addrs: Vec<String> = context.sql.query_values(&query, paramsx![]).await?;
     addrs.sort();
 
     let mut acc = member_cs;

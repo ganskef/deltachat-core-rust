@@ -22,7 +22,7 @@ pub fn sqlx_derive(input: TokenStream) -> TokenStream {
 
 
         impl<'de> sqlx::decode::Decode<'de, sqlx::sqlite::Sqlite> for #name {
-            fn decode(value: sqlx::sqlite::SqliteValue<'de>) -> sqlx::Result<Self> {
+            fn decode(value: sqlx::sqlite::SqliteValue) -> sqlx::Result<Self> {
                 let raw: i64 = sqlx::decode::Decode::decode(value)?;
 
                 Ok(num_traits::FromPrimitive::from_i64(raw).unwrap_or_default())

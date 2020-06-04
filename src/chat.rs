@@ -420,7 +420,7 @@ UPDATE contacts
             fields
         );
         sql.query_row_optional(
-            query,
+            &query,
             paramsx![
                 self,
                 MessageState::OutPreparing,
@@ -908,7 +908,7 @@ SELECT ps.prefer_encrypted, c.addr
                             timestamp,
                             msg.viewtype,
                             msg.state,
-                            msg.text.as_ref(),
+                            msg.text.as_ref().to_owned(),
                             msg.param.to_string(),
                             msg.hidden,
                             new_in_reply_to,
@@ -2124,7 +2124,7 @@ impl sqlx::encode::Encode<'_, sqlx::sqlite::Sqlite> for MuteDuration {
 }
 
 impl<'de> sqlx::decode::Decode<'de, sqlx::sqlite::Sqlite> for MuteDuration {
-    fn decode(value: sqlx::sqlite::SqliteValue<'de>) -> sqlx::Result<Self> {
+    fn decode(value: sqlx::sqlite::SqliteValue) -> sqlx::Result<Self> {
         // Negative values other than -1 should not be in the
         // database.  If found they'll be NotMuted.
         let raw: i64 = sqlx::decode::Decode::decode(value)?;
@@ -2680,8 +2680,8 @@ pub(crate) async fn add_info_msg(context: &Context, chat_id: ChatId, text: impl 
             dc_create_smeared_timestamp(context).await,
             Viewtype::Text,
             MessageState::InNoticed,
-            text.as_ref(),
-            &rfc724_mid
+            text.as_ref().to_owned(),
+            rfc724_mid.clone(),
         ]
     ).await.is_err() {
         return;

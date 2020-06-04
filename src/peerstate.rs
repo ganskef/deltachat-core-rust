@@ -163,7 +163,7 @@ SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key,
         .await
     }
 
-    async fn from_stmt<'a, P: sqlx::IntoArguments<'a, sqlx::sqlite::Sqlite>>(
+    async fn from_stmt<'a, P: sqlx::IntoArguments<'a, sqlx::sqlite::Sqlite> + 'a>(
         context: &Context,
         query: &'a str,
         params: P,

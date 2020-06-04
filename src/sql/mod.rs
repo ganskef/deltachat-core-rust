@@ -94,14 +94,14 @@ impl Sql {
     }
 
     /// Execute a single query.
-    pub async fn execute<'a, S: AsRef<str> + 'a, P>(&self, statement: S, params: P) -> Result<usize>
+    pub async fn execute<'a, P>(&self, statement: &'a str, params: P) -> Result<usize>
     where
-        P: sqlx::IntoArguments<'a, Sqlite>,
+        P: sqlx::IntoArguments<'a, Sqlite> + 'a,
     {
         let lock = self.xpool.read().await;
         let xpool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
 
-        let count = sqlx::query_as_with(statement.as_ref(), params)
+        let count = sqlx::query_as_with(statement, params)
             .execute(xpool)
             .await?;
 
@@ -109,7 +109,7 @@ impl Sql {
     }
 
     /// Execute a list of statements, without any bindings
-    pub async fn execute_batch<S: AsRef<str>>(&self, statement: S) -> Result<()> {
+    pub async fn execute_batch(&self, statement: &str) -> Result<()> {
         let lock = self.xpool.read().await;
         let xpool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
 
@@ -135,13 +135,9 @@ impl Sql {
     }
 
     /// Execute a query which is expected to return zero or more rows.
-    pub async fn query_rows<'a, T, S: AsRef<str> + 'a, P>(
-        &self,
-        statement: S,
-        params: P,
-    ) -> Result<Vec<T>>
+    pub async fn query_rows<'a, T, P>(&self, statement: &'a str, params: P) -> Result<Vec<T>>
     where
-        P: sqlx::IntoArguments<'a, Sqlite>,
+        P: sqlx::IntoArguments<'a, Sqlite> + 'a,
         T: for<'b> sqlx::FromRow<'b, SqliteRow> + Unpin + Send,
     {
         let lock = self.xpool.read().await;
@@ -155,13 +151,9 @@ impl Sql {
     }
 
     /// Execute a query which is expected to return zero or more rows.
-    pub async fn query_values<'a, T, S: AsRef<str> + 'a, P>(
-        &self,
-        statement: S,
-        params: P,
-    ) -> Result<Vec<T>>
+    pub async fn query_values<'a, T, P>(&self, statement: &'a str, params: P) -> Result<Vec<T>>
     where
-        P: sqlx::IntoArguments<'a, Sqlite>,
+        P: sqlx::IntoArguments<'a, Sqlite> + 'a,
         T: for<'b> sqlx::decode::Decode<'b, Sqlite>,
         T: sqlx::Type<Sqlite>,
         T: 'static + Unpin + Send,
@@ -181,34 +173,30 @@ impl Sql {
 
     /// Return `true` if a query in the SQL statement it executes returns one or more
     /// rows and false if the SQL returns an empty set.
-    pub async fn exists<'a, S: AsRef<str> + 'a, P>(&self, statement: S, params: P) -> Result<bool>
+    pub async fn exists<'a, P>(&self, statement: &'a str, params: P) -> Result<bool>
     where
-        P: sqlx::IntoArguments<'a, Sqlite>,
+        P: sqlx::IntoArguments<'a, Sqlite> + 'a,
     {
         let lock = self.xpool.read().await;
         let xpool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
 
-        let mut rows = sqlx::query_with(statement.as_ref(), params).fetch(xpool);
+        let mut rows = sqlx::query_with(statement, params).fetch(xpool);
 
         match rows.next().await {
             Some(Ok(_)) => Ok(true),
             None => Ok(false),
             Some(Err(sqlx::Error::RowNotFound)) => Ok(false),
             Some(Err(err)) => Err(Error::SqlxWithContext(
-                format!("exists: '{}'", statement.as_ref()),
+                format!("exists: '{}'", statement),
                 err,
             )),
         }
     }
 
     /// Execute a query which is expected to return one row.
-    pub async fn query_row<'a, T, S: AsRef<str> + 'a, P>(
-        &self,
-        statement: S,
-        params: P,
-    ) -> Result<T>
+    pub async fn query_row<'a, T, P>(&self, statement: &'a str, params: P) -> Result<T>
     where
-        P: sqlx::IntoArguments<'a, Sqlite>,
+        P: sqlx::IntoArguments<'a, Sqlite> + 'a,
         T: for<'b> sqlx::FromRow<'b, SqliteRow> + Unpin + Send,
     {
         let lock = self.xpool.read().await;
@@ -222,13 +210,13 @@ impl Sql {
     }
 
     /// Execute a query which is expected to return zero or one row.
-    pub async fn query_row_optional<'a, T, S: AsRef<str> + 'a, P>(
+    pub async fn query_row_optional<'a, T, P>(
         &self,
-        statement: S,
+        statement: &'a str,
         params: P,
     ) -> Result<Option<T>>
     where
-        P: sqlx::IntoArguments<'a, Sqlite>,
+        P: sqlx::IntoArguments<'a, Sqlite> + 'a,
         T: for<'b> sqlx::FromRow<'b, SqliteRow> + Unpin + Send,
     {
         let lock = self.xpool.read().await;
@@ -241,13 +229,13 @@ impl Sql {
         Ok(row)
     }
 
-    pub async fn query_value_optional<'a, T, S: AsRef<str> + 'a, P>(
+    pub async fn query_value_optional<'a, T, P>(
         &self,
-        statement: S,
+        statement: &'a str,
         params: P,
     ) -> Result<Option<T>>
     where
-        P: sqlx::IntoArguments<'a, Sqlite>,
+        P: sqlx::IntoArguments<'a, Sqlite> + 'a,
         T: for<'b> sqlx::decode::Decode<'b, Sqlite>,
         T: sqlx::Type<Sqlite>,
         T: 'static + Unpin + Send,
@@ -258,13 +246,9 @@ impl Sql {
         }
     }
 
-    pub async fn query_value<'a, T, S: AsRef<str> + 'a, P>(
-        &self,
-        statement: S,
-        params: P,
-    ) -> Result<T>
+    pub async fn query_value<'a, T, P>(&self, statement: &'a str, params: P) -> Result<T>
     where
-        P: sqlx::IntoArguments<'a, Sqlite>,
+        P: sqlx::IntoArguments<'a, Sqlite> + 'a,
         T: for<'b> sqlx::decode::Decode<'b, Sqlite>,
         T: sqlx::Type<Sqlite>,
         T: 'static + Unpin + Send,
@@ -413,7 +397,9 @@ impl Sql {
             field2.as_ref(),
         );
 
-        let res: i64 = self.query_value(query, paramsx![value, value2]).await?;
+        let res: i64 = self
+            .query_value(query.as_ref(), paramsx![value, value2])
+            .await?;
 
         Ok(res as u32)
     }
@@ -421,7 +407,7 @@ impl Sql {
 
 pub async fn housekeeping(context: &Context) -> Result<()> {
     let mut files_in_use = HashSet::new();
-    let mut unreferenced_count = 0;
+    let mut unreferenced_count = 0usize;
 
     info!(context, "Start housekeeping...");
     maybe_add_from_param(

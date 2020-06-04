@@ -674,7 +674,7 @@ async fn kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
     context
         .sql
         .execute(
-            format!(
+            &format!(
                 "DELETE FROM jobs WHERE id IN({})",
                 job_ids.iter().map(|_| "?").join(",")
             ),
