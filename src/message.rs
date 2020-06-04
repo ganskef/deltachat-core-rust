@@ -5,7 +5,7 @@ use async_std::prelude::*;
 use deltachat_derive::*;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use sqlx::sqlite::SqliteQueryAs;
+use sqlx::query::QueryAs;
 
 use crate::chat::{self, Chat, ChatId};
 use crate::constants::*;
@@ -231,8 +231,8 @@ pub struct Message {
     pub(crate) param: Params,
 }
 
-impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow<'a>> for Message {
-    fn from_row(row: &sqlx::sqlite::SqliteRow<'a>) -> Result<Self, sqlx::Error> {
+impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Message {
+    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
 
         let id = row.try_get("id")?;

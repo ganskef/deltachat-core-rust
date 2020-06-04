@@ -3,7 +3,7 @@
 use async_std::prelude::*;
 use bitflags::bitflags;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
-use sqlx::sqlite::SqliteQueryAs;
+use sqlx::query::QueryAs;
 
 use crate::chat::{self, ChatId};
 use crate::config::Config;
@@ -39,8 +39,8 @@ impl Location {
     }
 }
 
-impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow<'a>> for Location {
-    fn from_row(row: &sqlx::sqlite::SqliteRow<'a>) -> Result<Self, sqlx::Error> {
+impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Location {
+    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
 
         let msg_id = row.try_get::<i32, _>("msg_id")? as u32;

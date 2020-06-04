@@ -13,7 +13,7 @@ use async_std::prelude::*;
 use deltachat_derive::*;
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
-use sqlx::sqlite::SqliteQueryAs;
+use sqlx::query::QueryAs;
 
 use crate::blob::BlobObject;
 use crate::chat::{self, ChatId};
@@ -146,8 +146,8 @@ impl fmt::Display for Job {
     }
 }
 
-impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow<'a>> for Job {
-    fn from_row(row: &sqlx::sqlite::SqliteRow<'a>) -> Result<Self, sqlx::Error> {
+impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Job {
+    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
         let foreign_id: i64 = row.try_get("foreign_id")?;
         if foreign_id < 0 {
@@ -665,7 +665,8 @@ pub async fn kill_action(context: &Context, action: Action) -> bool {
 
 /// Remove jobs with specified IDs.
 async fn kill_ids(context: &Context, job_ids: &[u32]) -> sql::Result<()> {
-    use sqlx::arguments::Arguments;
+    use sqlx::Arguments;
+
     let mut args = sqlx::sqlite::SqliteArguments::default();
     for job_id in job_ids {
         args.add(*job_id as i32);

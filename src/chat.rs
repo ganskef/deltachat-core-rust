@@ -9,7 +9,7 @@ use deltachat_derive::*;
 use itertools::Itertools;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
-use sqlx::{arguments::Arguments, sqlite::SqliteQueryAs, Cursor, Row};
+use sqlx::{query::QueryAs, Arguments, Row};
 
 use crate::blob::{BlobError, BlobObject};
 use crate::chatlist::*;
@@ -409,7 +409,7 @@ UPDATE contacts
 
     async fn parent_query<T>(self, context: &Context, fields: &str) -> sql::Result<Option<T>>
     where
-        T: for<'a> sqlx::row::FromRow<'a, sqlx::sqlite::SqliteRow<'a>> + Unpin,
+        T: for<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> + Unpin + Send,
     {
         let sql = &context.sql;
         let query = format!(
@@ -497,8 +497,8 @@ pub struct Chat {
     pub mute_duration: MuteDuration,
 }
 
-impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow<'a>> for Chat {
-    fn from_row(row: &sqlx::sqlite::SqliteRow<'a>) -> Result<Self, sqlx::Error> {
+impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Chat {
+    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         let c = Chat {
             id: row.try_get("id").unwrap_or_default(),
             typ: row.try_get("type")?,
@@ -1173,20 +1173,20 @@ pub(crate) async fn create_or_lookup_by_contact_id(
     let chat_name = contact.get_display_name().to_string();
 
     let mut tx = context.sql.begin().await?;
-    sqlx::query(
+    sqlx::query_with(
         "INSERT INTO chats (type, name, param, blocked, created_timestamp) VALUES(?, ?, ?, ?, ?)",
+        paramsx![
+            Chattype::Single,
+            chat_name,
+            match contact_id {
+                DC_CONTACT_ID_SELF => "K=1".to_string(), // K = Param::Selftalk
+                DC_CONTACT_ID_DEVICE => "D=1".to_string(), // D = Param::Devicetalk
+                _ => "".to_string(),
+            },
+            create_blocked as i32,
+            time(),
+        ],
     )
-    .bind_all(paramsx![
-        Chattype::Single,
-        chat_name,
-        match contact_id {
-            DC_CONTACT_ID_SELF => "K=1".to_string(), // K = Param::Selftalk
-            DC_CONTACT_ID_DEVICE => "D=1".to_string(), // D = Param::Devicetalk
-            _ => "".to_string(),
-        },
-        create_blocked as i32,
-        time(),
-    ])
     .execute(&mut tx)
     .await?;
 
@@ -2108,7 +2108,7 @@ pub enum MuteDuration {
     Until(SystemTime),
 }
 
-impl sqlx::encode::Encode<sqlx::sqlite::Sqlite> for MuteDuration {
+impl sqlx::encode::Encode<'_, sqlx::sqlite::Sqlite> for MuteDuration {
     fn encode(&self, buf: &mut Vec<sqlx::sqlite::SqliteArgumentValue>) {
         let duration: i64 = match &self {
             MuteDuration::NotMuted => 0,
@@ -2446,9 +2446,10 @@ pub async fn forward_msgs(
             "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
             msg_ids.iter().map(|_| "?").join(",")
         );
-        let mut rows = sqlx::query(&query).bind_all(args).fetch(&pool);
+        let mut rows = sqlx::query_with(&query, args).fetch(&pool);
 
-        while let Ok(Some(row)) = rows.next().await {
+        while let Some(row) = rows.next().await {
+            let row = row?;
             let src_msg_id: MsgId = row.try_get(0)?;
             let msg = Message::load_from_db(context, src_msg_id).await;
             if msg.is_err() {

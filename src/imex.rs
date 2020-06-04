@@ -6,7 +6,7 @@ use std::cmp::{max, min};
 use async_std::path::{Path, PathBuf};
 use async_std::prelude::*;
 use rand::{thread_rng, Rng};
-use sqlx::sqlite::SqliteQueryAs;
+use sqlx::query::QueryAs;
 
 use crate::blob::BlobObject;
 use crate::chat;

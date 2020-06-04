@@ -6,7 +6,7 @@ use deltachat_derive::*;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
-use sqlx::sqlite::SqliteQueryAs;
+use sqlx::query::QueryAs;
 
 use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;
@@ -131,8 +131,8 @@ impl Default for Origin {
         Origin::Unknown
     }
 }
-impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow<'a>> for Contact {
-    fn from_row(row: &sqlx::sqlite::SqliteRow<'a>) -> Result<Self, sqlx::Error> {
+impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Contact {
+    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
 
         let contact = Self {

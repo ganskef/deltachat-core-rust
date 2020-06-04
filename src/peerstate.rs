@@ -41,8 +41,8 @@ pub struct Peerstate {
     pub degrade_event: Option<DegradeEvent>,
 }
 
-impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow<'a>> for Peerstate {
-    fn from_row(row: &sqlx::sqlite::SqliteRow<'a>) -> Result<Self, sqlx::Error> {
+impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Peerstate {
+    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
 
         let mut res = Self::new(row.try_get("addr")?);
@@ -163,10 +163,10 @@ SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key,
         .await
     }
 
-    async fn from_stmt(
+    async fn from_stmt<'a, P: sqlx::IntoArguments<'a, sqlx::sqlite::Sqlite>>(
         context: &Context,
-        query: &str,
-        params: sqlx::sqlite::SqliteArguments,
+        query: &'a str,
+        params: P,
     ) -> Result<Peerstate> {
         /* all the above queries start with this: SELECT
         addr, last_seen, last_seen_autocrypt, prefer_encrypted,

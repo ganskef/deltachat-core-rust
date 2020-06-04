@@ -1,7 +1,7 @@
 use async_std::prelude::*;
 use chrono::TimeZone;
 use lettre_email::{mime, Address, Header, MimeMultipartType, PartBuilder};
-use sqlx::sqlite::SqliteQueryAs;
+use sqlx::query::QueryAs;
 
 use crate::blob::BlobObject;
 use crate::chat::{self, Chat};

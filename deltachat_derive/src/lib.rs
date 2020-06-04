@@ -14,7 +14,7 @@ pub fn sqlx_derive(input: TokenStream) -> TokenStream {
     let name = &ast.ident;
 
     let gen = quote! {
-        impl sqlx::encode::Encode<sqlx::sqlite::Sqlite> for #name {
+        impl<'a> sqlx::encode::Encode<'a, sqlx::sqlite::Sqlite> for #name {
             fn encode(&self, buf: &mut Vec<sqlx::sqlite::SqliteArgumentValue>) {
                 num_traits::ToPrimitive::to_i64(self).expect("invalid type").encode(buf)
             }
