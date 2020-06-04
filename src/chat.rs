@@ -9,7 +9,7 @@ use deltachat_derive::*;
 use itertools::Itertools;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
-use sqlx::{query::QueryAs, Arguments, Row};
+use sqlx::{Arguments, Row};
 
 use crate::blob::{BlobError, BlobObject};
 use crate::chatlist::*;
@@ -344,15 +344,17 @@ UPDATE contacts
         context
             .sql
             .execute(
-                "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden)
-         VALUES (?,?,?, ?,?,?,?,?);",
+                r#"
+INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden)
+  VALUES (?,?,?,?,?,?,?,?);
+"#,
                 paramsx![
                     self,
                     DC_CONTACT_ID_SELF as i32,
                     time(),
                     msg.viewtype,
                     MessageState::OutDraft,
-                    msg.text.as_deref().unwrap_or(""),
+                    msg.text.as_deref().unwrap_or("").to_owned(),
                     msg.param.to_string(),
                     1i32
                 ],
@@ -898,36 +900,48 @@ SELECT ps.prefer_encrypted, c.addr
 
             // add message to the database
 
-            if context.sql.execute(
-                        "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?);",
-                        paramsx![
-                            &new_rfc724_mid,
-                            self.id,
-                            DC_CONTACT_ID_SELF as i32,
-                            to_id as i32,
-                            timestamp,
-                            msg.viewtype,
-                            msg.state,
-                            msg.text.as_ref().to_owned(),
-                            msg.param.to_string(),
-                            msg.hidden,
-                            new_in_reply_to,
-                            new_references,
-                            location_id as i32
-                        ]
-                    ).await.is_ok() {
-                        msg_id = context.sql.get_rowid(
-                            "msgs",
-                            "rfc724_mid",
-                            new_rfc724_mid,
-                        ).await?;
-                    } else {
-                        error!(
-                            context,
-                            "Cannot send message, cannot insert to database ({}).",
-                            self.id,
-                        );
-                    }
+            if context
+                .sql
+                .execute(
+                    r#"
+INSERT INTO msgs (
+    rfc724_mid, chat_id, from_id, to_id, 
+    timestamp, type, state, txt, 
+    param, hidden, mime_in_reply_to, mime_references, location_id) 
+  VALUES (
+    ?,?,?,?,
+    ?,?,?,?,
+    ?,?,?,?,?);
+"#,
+                    paramsx![
+                        new_rfc724_mid.clone(),
+                        self.id,
+                        DC_CONTACT_ID_SELF as i32,
+                        to_id as i32,
+                        timestamp,
+                        msg.viewtype,
+                        msg.state,
+                        msg.text.as_ref().cloned(),
+                        msg.param.to_string(),
+                        msg.hidden,
+                        new_in_reply_to,
+                        new_references,
+                        location_id as i32
+                    ],
+                )
+                .await
+                .is_ok()
+            {
+                msg_id = context
+                    .sql
+                    .get_rowid("msgs", "rfc724_mid", new_rfc724_mid)
+                    .await?;
+            } else {
+                error!(
+                    context,
+                    "Cannot send message, cannot insert to database ({}).", self.id,
+                );
+            }
         } else {
             error!(context, "Cannot send message, not configured.",);
         }

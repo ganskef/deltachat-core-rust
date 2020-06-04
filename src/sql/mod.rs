@@ -5,7 +5,7 @@ use std::path::Path;
 
 use async_std::prelude::*;
 use async_std::sync::RwLock;
-use sqlx::{query::QueryAs, sqlite::*};
+use sqlx::sqlite::*;
 
 use crate::chat::{update_device_icon, update_saved_messages_icon};
 use crate::constants::DC_CHAT_ID_TRASH;

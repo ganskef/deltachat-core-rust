@@ -13,7 +13,6 @@ use async_std::prelude::*;
 use deltachat_derive::*;
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
-use sqlx::query::QueryAs;
 
 use crate::blob::BlobObject;
 use crate::chat::{self, ChatId};

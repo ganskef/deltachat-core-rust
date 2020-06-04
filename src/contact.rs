@@ -6,7 +6,6 @@ use deltachat_derive::*;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
-use sqlx::query::QueryAs;
 
 use crate::aheader::EncryptPreference;
 use crate::chat::ChatId;

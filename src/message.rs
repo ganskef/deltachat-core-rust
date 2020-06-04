@@ -5,7 +5,6 @@ use async_std::prelude::*;
 use deltachat_derive::*;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use sqlx::query::QueryAs;
 
 use crate::chat::{self, Chat, ChatId};
 use crate::constants::*;

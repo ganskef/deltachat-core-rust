@@ -3,7 +3,6 @@ use itertools::join;
 use mailparse::SingleInfo;
 use num_traits::FromPrimitive;
 use sha2::{Digest, Sha256};
-use sqlx::query::QueryAs;
 
 use crate::chat::{self, Chat, ChatId};
 use crate::config::Config;

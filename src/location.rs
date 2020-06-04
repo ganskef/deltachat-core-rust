@@ -3,7 +3,6 @@
 use async_std::prelude::*;
 use bitflags::bitflags;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
-use sqlx::query::QueryAs;
 
 use crate::chat::{self, ChatId};
 use crate::config::Config;
