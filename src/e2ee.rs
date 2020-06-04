@@ -155,7 +155,7 @@ pub async fn try_decrypt(
     let mut signatures = HashSet::default();
 
     if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
-        peerstate = Peerstate::from_addr(&context, &from).await;
+        peerstate = Peerstate::from_addr(&context, &from).await.ok();
     }
     if let Some(peerstate) = peerstate {
         if peerstate.degrade_event.is_some() {

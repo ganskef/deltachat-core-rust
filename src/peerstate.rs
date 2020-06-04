@@ -57,13 +57,13 @@ impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow<'a>> for Peerstate {
         res.verified_key_fingerprint = row.try_get("verified_key_fingerprint")?;
         res.public_key = row
             .try_get::<Option<&[u8]>, _>("public_key")?
-            .and_then(|blob| Key::from_slice(blob, KeyType::Public).ok());
+            .and_then(|blob| SignedPublicKey::from_slice(blob).ok());
         res.gossip_key = row
             .try_get::<Option<&[u8]>, _>("gossip_key")?
-            .and_then(|blob| Key::from_slice(blob, KeyType::Public).ok());
+            .and_then(|blob| SignedPublicKey::from_slice(blob).ok());
         res.verified_key = row
             .try_get::<Option<&[u8]>, _>("verified_key")?
-            .and_then(|blob| Key::from_slice(blob, KeyType::Public).ok());
+            .and_then(|blob| SignedPublicKey::from_slice(blob).ok());
 
         Ok(res)
     }
