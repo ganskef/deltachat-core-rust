@@ -2123,7 +2123,10 @@ pub enum MuteDuration {
 }
 
 impl sqlx::encode::Encode<'_, sqlx::sqlite::Sqlite> for MuteDuration {
-    fn encode(&self, buf: &mut Vec<sqlx::sqlite::SqliteArgumentValue>) {
+    fn encode_by_ref(
+        &self,
+        buf: &mut Vec<sqlx::sqlite::SqliteArgumentValue<'_>>,
+    ) -> sqlx::encode::IsNull {
         let duration: i64 = match &self {
             MuteDuration::NotMuted => 0,
             MuteDuration::Forever => -1,
@@ -2138,7 +2141,9 @@ impl sqlx::encode::Encode<'_, sqlx::sqlite::Sqlite> for MuteDuration {
 }
 
 impl<'de> sqlx::decode::Decode<'de, sqlx::sqlite::Sqlite> for MuteDuration {
-    fn decode(value: sqlx::sqlite::SqliteValue) -> sqlx::Result<Self> {
+    fn decode(
+        value: sqlx::sqlite::SqliteValueRef,
+    ) -> std::result::Result<Self, sqlx::error::BoxDynError> {
         // Negative values other than -1 should not be in the
         // database.  If found they'll be NotMuted.
         let raw: i64 = sqlx::decode::Decode::decode(value)?;
@@ -2147,9 +2152,9 @@ impl<'de> sqlx::decode::Decode<'de, sqlx::sqlite::Sqlite> for MuteDuration {
             -1 => Ok(MuteDuration::Forever),
             n if n > 0 => match SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(n as u64)) {
                 Some(t) => Ok(MuteDuration::Until(t)),
-                None => Err(sqlx::Error::Decode(
+                None => Err(Box::new(sqlx::Error::Decode(
                     anyhow::anyhow!("mute duration out of range: {}", raw).into(),
-                )),
+                ))),
             },
             _ => Ok(MuteDuration::NotMuted),
         }

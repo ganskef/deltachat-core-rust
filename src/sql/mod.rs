@@ -101,9 +101,7 @@ impl Sql {
         let lock = self.xpool.read().await;
         let xpool = lock.as_ref().ok_or_else(|| Error::SqlNoConnection)?;
 
-        let count = sqlx::query_as_with(statement, params)
-            .execute(xpool)
-            .await?;
+        let count = sqlx::query_with(statement, params).execute(xpool).await?;
 
         Ok(count as usize)
     }
