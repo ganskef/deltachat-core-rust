@@ -52,18 +52,36 @@ impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Peerstate {
         res.prefer_encrypt = row.try_get("prefer_encrypted")?;
         res.gossip_timestamp = row.try_get("gossip_timestamp")?;
 
-        res.public_key_fingerprint = row.try_get("public_key_fingerprint")?;
-        res.gossip_key_fingerprint = row.try_get("gossip_key_fingerprint")?;
-        res.verified_key_fingerprint = row.try_get("verified_key_fingerprint")?;
+        res.public_key_fingerprint = row
+            .try_get::<Option<String>, _>("public_key_fingerprint")?
+            .map(|fp| fp.parse::<Fingerprint>())
+            .transpose()
+            .map_err(|err| sqlx::Error::Decode(Box::new(err)))?;
+        res.gossip_key_fingerprint = row
+            .try_get::<Option<String>, _>("gossip_key_fingerprint")?
+            .map(|fp| fp.parse::<Fingerprint>())
+            .transpose()
+            .map_err(|err| sqlx::Error::Decode(Box::new(err)))?;
+        res.verified_key_fingerprint = row
+            .try_get::<Option<String>, _>("verified_key_fingerprint")?
+            .map(|fp| fp.parse::<Fingerprint>())
+            .transpose()
+            .map_err(|err| sqlx::Error::Decode(Box::new(err)))?;
         res.public_key = row
             .try_get::<Option<&[u8]>, _>("public_key")?
-            .and_then(|blob| SignedPublicKey::from_slice(blob).ok());
+            .map(|blob| SignedPublicKey::from_slice(blob))
+            .transpose()
+            .map_err(|err| sqlx::Error::Decode(Box::new(err)))?;
         res.gossip_key = row
             .try_get::<Option<&[u8]>, _>("gossip_key")?
-            .and_then(|blob| SignedPublicKey::from_slice(blob).ok());
+            .map(|blob| SignedPublicKey::from_slice(blob))
+            .transpose()
+            .map_err(|err| sqlx::Error::Decode(Box::new(err)))?;
         res.verified_key = row
             .try_get::<Option<&[u8]>, _>("verified_key")?
-            .and_then(|blob| SignedPublicKey::from_slice(blob).ok());
+            .map(|blob| SignedPublicKey::from_slice(blob))
+            .transpose()
+            .map_err(|err| sqlx::Error::Decode(Box::new(err)))?;
 
         Ok(res)
     }
@@ -158,7 +176,7 @@ SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key,
         Self::from_stmt(
             context,
             query,
-            paramsx![fingerprint, fingerprint, fingerprint],
+            paramsx![&fingerprint, &fingerprint, &fingerprint],
         )
         .await
     }
@@ -422,12 +440,6 @@ UPDATE acpeerstates
         }
 
         false
-    }
-}
-
-impl From<crate::key::FingerprintError> for rusqlite::Error {
-    fn from(_source: crate::key::FingerprintError) -> Self {
-        Self::InvalidColumnType(0, "Invalid fingerprint".into(), rusqlite::types::Type::Text)
     }
 }
 

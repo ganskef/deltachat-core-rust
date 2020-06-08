@@ -1065,9 +1065,8 @@ pub(crate) async fn load_next(
     info!(context, "loading job for {}-thread", thread);
 
     let query;
-    let params;
+    let params: Box<dyn Fn() -> sqlx::sqlite::SqliteArguments<'static> + 'static + Send>;
     let t = time();
-    let m;
     let thread_i = thread as i64;
 
     if let Some(msg_id) = info.msg_id {
@@ -1078,8 +1077,7 @@ WHERE thread=? AND foreign_id=?
 ORDER BY action DESC, added_timestamp
 LIMIT 1;
 "#;
-        m = msg_id;
-        params = paramsv![thread_i, m];
+        params = Box::new(move || paramsx![thread_i, msg_id]);
     } else if !info.probe_network {
         // processing for first-try and after backoff-timeouts:
         // process jobs in the order they were added.
@@ -1090,7 +1088,7 @@ WHERE thread=? AND desired_timestamp<=?
 ORDER BY action DESC, added_timestamp
 LIMIT 1;
 "#;
-        params = paramsv![thread_i, t];
+        params = Box::new(move || paramsx![thread_i, t]);
     } else {
         // processing after call to dc_maybe_network():
         // process _all_ pending jobs that failed before
@@ -1102,12 +1100,12 @@ WHERE thread=? AND tries>0
 ORDER BY desired_timestamp, action DESC
 LIMIT 1;
 "#;
-        params = paramsv![thread_i];
+        params = Box::new(move || paramsx![thread_i]);
     };
 
     let job: Option<Job> = loop {
-        let job_res = context.sql.query_row_optional(query, params()).await;
-        dbg!(&job_res);
+        let p = params();
+        let job_res = context.sql.query_row_optional(query, p).await;
 
         match job_res {
             Ok(job) => break job,
@@ -1116,7 +1114,8 @@ LIMIT 1;
                 info!(context, "cleaning up job, because of {}", err);
 
                 // TODO: improve by only doing a single query
-                let id: Result<i32, _> = context.sql.query_value(query, params()).await;
+                let p = params();
+                let id: Result<i32, _> = context.sql.query_value(query, p).await;
                 match id {
                     Ok(id) => {
                         context
