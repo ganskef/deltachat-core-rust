@@ -231,7 +231,7 @@ async fn generate_keypair(context: &Context) -> Result<KeyPair> {
             r#"
         SELECT public_key, private_key
           FROM keypairs
-         WHERE addr=?1
+         WHERE addr=?
            AND is_default=1;
         "#,
             paramsx![addr.to_string()],

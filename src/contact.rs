@@ -138,8 +138,12 @@ impl<'a> sqlx::FromRow<'a, sqlx::sqlite::SqliteRow> for Contact {
 
         let contact = Self {
             id: row.try_get::<i64, _>("id")? as u32,
-            name: row.try_get::<String, _>("name")?,
-            authname: row.try_get::<String, _>("authname")?,
+            name: row
+                .try_get::<Option<String>, _>("name")?
+                .unwrap_or_default(),
+            authname: row
+                .try_get::<Option<String>, _>("authname")?
+                .unwrap_or_default(),
             addr: row.try_get::<String, _>("addr")?,
             blocked: row
                 .try_get::<Option<i32>, _>("blocked")?
@@ -188,13 +192,14 @@ impl Contact {
             .sql
             .query_row(
                 r#"
-SELECT c.id, c.name, c.addr, c.origin, c.blocked, c.authname, c.param
-  FROM contacts c
-  WHERE c.id=?;
+SELECT id, name, addr, origin, blocked, authname, param
+  FROM contacts
+  WHERE id=?;
 "#,
                 paramsx![contact_id as i32],
             )
             .await?;
+
         if contact_id == DC_CONTACT_ID_SELF {
             res.name = context.stock_str(StockMessage::SelfMsg).await.to_string();
             res.addr = context
@@ -320,7 +325,7 @@ WHERE from_id=? AND state=?;
             return DC_CONTACT_ID_SELF;
         }
         let v: i32 = context.sql.query_value(
-            "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;",
+            "SELECT id FROM contacts WHERE addr=? COLLATE NOCASE AND id>? AND origin>=? AND blocked=0;",
             paramsx![
                 addr_normalized,
                 DC_CONTACT_ID_LAST_SPECIAL as i32,
@@ -586,12 +591,12 @@ WHERE from_id=? AND state=?;
                 r#"
 SELECT c.id FROM contacts c
   LEFT JOIN acpeerstates ps ON c.addr=ps.addr
-  WHERE c.addr!=?1
-    AND c.id>?2
-    AND c.origin>=?3
+  WHERE c.addr!=?
+    AND c.id>?
+    AND c.origin>=?
     AND c.blocked=0
-    AND (c.name LIKE ?4 OR c.addr LIKE ?5)
-    AND (1=?6 OR LENGTH(ps.verified_key_fingerprint)!=0)
+    AND (c.name LIKE ? OR c.addr LIKE ?)
+    AND (1=? OR LENGTH(ps.verified_key_fingerprint)!=0)
   ORDER BY LOWER(c.name||c.addr),c.id
 "#,
             )
@@ -629,7 +634,7 @@ SELECT c.id FROM contacts c
 
             let pool = context.sql.get_pool().await?;
             let mut rows = sqlx::query_as(
-                "SELECT id FROM contacts WHERE addr!=?1 AND id>?2 AND origin>=?3 AND blocked=0 ORDER BY LOWER(name||addr),id;"
+                "SELECT id FROM contacts WHERE addr!=? AND id>? AND origin>=? AND blocked=0 ORDER BY LOWER(name || addr), id;"
             ).bind(self_addr).bind(DC_CONTACT_ID_LAST_SPECIAL as i32).bind(0x100).fetch(&pool);
 
             while let Some(id) = rows.next().await {

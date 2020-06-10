@@ -140,12 +140,12 @@ impl Chatlist {
                                SELECT MAX(timestamp)
                                  FROM msgs
                                 WHERE chat_id=c.id
-                                  AND (hidden=0 OR state=?1))
+                                  AND (hidden=0 OR state=?))
                  WHERE c.id>9
                    AND c.blocked=0
-                   AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?2)
+                   AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)
                  GROUP BY c.id
-                 ORDER BY c.archived=?3 DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
+                 ORDER BY c.archived=? DESC, IFNULL(m.timestamp,c.created_timestamp) DESC, m.id DESC;",
                 paramsx![MessageState::OutDraft, query_contact_id as i32, ChatVisibility::Pinned],
             ).await?
         } else if flag_archived_only {

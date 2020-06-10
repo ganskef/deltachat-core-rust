@@ -1213,11 +1213,12 @@ pub(crate) async fn create_or_lookup_by_contact_id(
     .await?;
 
     sqlx::query(
-        "INSERT INTO chats_contacts (chat_id, contact_id) VALUES ( (SELECT last_insert_rowid() ), ?)",
+        "INSERT INTO chats_contacts (chat_id, contact_id) VALUES ( ( SELECT last_insert_rowid() ), ?)",
     )
     .bind(contact_id as i64)
     .execute(&mut tx)
     .await?;
+
     tx.commit().await?;
 
     if contact_id == DC_CONTACT_ID_SELF {
