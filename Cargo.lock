@@ -72,9 +72,9 @@ dependencies = [
 
 [[package]]
 name = "ahash"
-version = "0.3.7"
+version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c867e80c0bb9aeb5087a4c3ce88e1b0ca840835d6ee62020f112f213a6c55a37"
+checksum = "e8fd72866655d1904d6b0997d0b07ba561047d070fbe29de039031c641b61217"
 
 [[package]]
 name = "aho-corasick"
@@ -245,27 +245,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-stream"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22068c0c19514942eefcfd4daf8976ef1aad84e61539f95cd200c35202f80af5"
-dependencies = [
- "async-stream-impl",
- "futures-core",
-]
-
-[[package]]
-name = "async-stream-impl"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25f9db3b38af870bf7e5cc649167533b493928e50744e2c30ae350230b414670"
-dependencies = [
- "proc-macro2",
- "quote 1.0.7",
- "syn 1.0.30",
-]
-
-[[package]]
 name = "async-task"
 version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -273,9 +252,9 @@ checksum = "c17772156ef2829aadc587461c7753af20b7e8db1529bc66855add962a3b35d3"
 
 [[package]]
 name = "async-trait"
-version = "0.1.33"
+version = "0.1.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f1c13101a3224fb178860ae372a031ce350bbd92d39968518f016744dde0bf7"
+checksum = "89cb5d814ab2a47fd66d3266e9efccb53ca4c740b7451043b8ffcf9a6208f3f8"
 dependencies = [
  "proc-macro2",
  "quote 1.0.7",
@@ -989,7 +968,7 @@ checksum = "bb1f6b1ce1c140482ea30ddd3335fc0024ac7ee112895426e0a629a6c20adfe3"
 [[package]]
 name = "email"
 version = "0.0.21"
-source = "git+https://github.com/deltachat/rust-email#ace12ee6f8e054dd890589f588d0311604fc25f0"
+source = "git+https://github.com/deltachat/rust-email#9161f2d45d29ae8f0119fde0facdb1b0d7c6f077"
 dependencies = [
  "base64 0.11.0",
  "chrono",
@@ -2955,7 +2934,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.4.0-pre"
-source = "git+https://github.com/launchbadge/sqlx#e54d030381da5e2629b100c0b11b4a2d11245f2f"
+source = "git+https://github.com/launchbadge/sqlx#e1d22a1840c07e0bbdd97791fc4993413e151384"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -2964,9 +2943,8 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.4.0-pre"
-source = "git+https://github.com/launchbadge/sqlx#e54d030381da5e2629b100c0b11b4a2d11245f2f"
+source = "git+https://github.com/launchbadge/sqlx#e1d22a1840c07e0bbdd97791fc4993413e151384"
 dependencies = [
- "async-stream",
  "atoi",
  "bitflags",
  "byteorder",
@@ -3001,7 +2979,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.4.0-pre"
-source = "git+https://github.com/launchbadge/sqlx#e54d030381da5e2629b100c0b11b4a2d11245f2f"
+source = "git+https://github.com/launchbadge/sqlx#e1d22a1840c07e0bbdd97791fc4993413e151384"
 dependencies = [
  "async-std",
  "dotenv",
@@ -3017,7 +2995,7 @@ dependencies = [
 [[package]]
 name = "sqlx-rt"
 version = "0.1.0-pre"
-source = "git+https://github.com/launchbadge/sqlx#e54d030381da5e2629b100c0b11b4a2d11245f2f"
+source = "git+https://github.com/launchbadge/sqlx#e1d22a1840c07e0bbdd97791fc4993413e151384"
 dependencies = [
  "async-native-tls",
  "async-std",
@@ -3212,9 +3190,9 @@ dependencies = [
 
 [[package]]
 name = "synstructure"
-version = "0.12.3"
+version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67656ea1dc1b41b1451851562ea232ec2e5a80242139f7e679ceccfb5d61f545"
+checksum = "b834f2d66f734cb897113e34aaff2f1ab4719ca946f9a7358dba8f8064148701"
 dependencies = [
  "proc-macro2",
  "quote 1.0.7",

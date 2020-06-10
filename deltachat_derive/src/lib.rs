@@ -16,22 +16,22 @@ pub fn sqlx_derive(input: TokenStream) -> TokenStream {
     let gen = quote! {
         impl<'q> sqlx::encode::Encode<'q, sqlx::sqlite::Sqlite> for #name {
             fn encode_by_ref(&self, buf: &mut Vec<sqlx::sqlite::SqliteArgumentValue<'q>>) -> sqlx::encode::IsNull{
-                num_traits::ToPrimitive::to_i64(self).expect("invalid type").encode(buf)
+                num_traits::ToPrimitive::to_i32(self).expect("invalid type").encode(buf)
             }
         }
 
 
         impl<'de> sqlx::decode::Decode<'de, sqlx::sqlite::Sqlite> for #name {
             fn decode(value: sqlx::sqlite::SqliteValueRef) -> std::result::Result<Self, sqlx::BoxDynError> {
-                let raw: i64 = sqlx::decode::Decode::decode(value)?;
+                let raw: i32 = sqlx::decode::Decode::decode(value)?;
 
-                Ok(num_traits::FromPrimitive::from_i64(raw).unwrap_or_default())
+                Ok(num_traits::FromPrimitive::from_i32(raw).unwrap_or_default())
             }
         }
 
         impl sqlx::types::Type<sqlx::sqlite::Sqlite> for #name {
             fn type_info() -> sqlx::sqlite::SqliteTypeInfo {
-                <i64 as sqlx::types::Type<_>>::type_info()
+                <i32 as sqlx::types::Type<_>>::type_info()
             }
         }
 

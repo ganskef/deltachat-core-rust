@@ -5,7 +5,6 @@ use std::time::{Duration, SystemTime};
 
 use async_std::path::{Path, PathBuf};
 use async_std::prelude::*;
-use deltachat_derive::*;
 use itertools::Itertools;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
@@ -45,7 +44,7 @@ use crate::stock::StockMessage;
     Ord,
     FromPrimitive,
     ToPrimitive,
-    Sqlx,
+    deltachat_derive::Sqlx,
 )]
 pub struct ChatId(u32);
 
@@ -951,9 +950,18 @@ INSERT INTO msgs (
 }
 
 #[derive(
-    Debug, Copy, Eq, PartialEq, Clone, Serialize, Deserialize, FromPrimitive, ToPrimitive, Sqlx,
+    Debug,
+    Copy,
+    Eq,
+    PartialEq,
+    Clone,
+    Serialize,
+    Deserialize,
+    FromPrimitive,
+    ToPrimitive,
+    sqlx::Type,
 )]
-#[repr(u8)]
+#[repr(i32)]
 pub enum ChatVisibility {
     Normal = 0,
     Archived = 1,
@@ -2127,12 +2135,12 @@ impl sqlx::encode::Encode<'_, sqlx::sqlite::Sqlite> for MuteDuration {
         &self,
         buf: &mut Vec<sqlx::sqlite::SqliteArgumentValue<'_>>,
     ) -> sqlx::encode::IsNull {
-        let duration: i64 = match &self {
+        let duration: i32 = match &self {
             MuteDuration::NotMuted => 0,
             MuteDuration::Forever => -1,
             MuteDuration::Until(when) => {
                 let duration = when.duration_since(SystemTime::UNIX_EPOCH).unwrap();
-                i64::try_from(duration.as_secs()).unwrap()
+                i32::try_from(duration.as_secs()).unwrap()
             }
         };
 
@@ -2146,7 +2154,7 @@ impl<'de> sqlx::decode::Decode<'de, sqlx::sqlite::Sqlite> for MuteDuration {
     ) -> std::result::Result<Self, sqlx::error::BoxDynError> {
         // Negative values other than -1 should not be in the
         // database.  If found they'll be NotMuted.
-        let raw: i64 = sqlx::decode::Decode::decode(value)?;
+        let raw: i32 = sqlx::decode::Decode::decode(value)?;
         match raw {
             0 => Ok(MuteDuration::NotMuted),
             -1 => Ok(MuteDuration::Forever),
@@ -2163,7 +2171,7 @@ impl<'de> sqlx::decode::Decode<'de, sqlx::sqlite::Sqlite> for MuteDuration {
 
 impl sqlx::types::Type<sqlx::sqlite::Sqlite> for MuteDuration {
     fn type_info() -> sqlx::sqlite::SqliteTypeInfo {
-        <i64 as sqlx::types::Type<_>>::type_info()
+        <i32 as sqlx::types::Type<_>>::type_info()
     }
 }
 

@@ -590,7 +590,7 @@ async fn open(
 
     let xpool = sqlx::SqlitePool::builder()
         .min_size(1)
-        .max_size(1) // workaround for current locking issues in sqlx
+        .max_size(4)
         .build(&format!("sqlite://{}", dbfile.as_ref().to_string_lossy()))
         .await?;
 

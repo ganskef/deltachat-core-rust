@@ -70,7 +70,9 @@ pub struct Contact {
 }
 
 /// Possible origins of a contact.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive, Sqlx)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive, sqlx::Type,
+)]
 #[repr(i32)]
 pub enum Origin {
     Unknown = 0,
